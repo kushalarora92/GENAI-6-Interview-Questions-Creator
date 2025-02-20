@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Questions Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Interview Questions Generator</h1>
+            <p class="text-gray-600">Upload a PDF to generate interview questions and answers</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="max-w-2xl mx-auto">
+            <!-- Upload Section -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <form id="uploadForm" class="space-y-4">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <input type="file" 
+                               id="pdfFile" 
+                               accept=".pdf" 
+                               class="hidden" 
+                               required>
+                        <label for="pdfFile" class="cursor-pointer">
+                            <div class="text-gray-600">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <p class="mt-1">Click to upload PDF or drag and drop</p>
+                                <p class="text-sm text-gray-500">PDF files only</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- File name display (shown after file selection) -->
+                    <div id="fileDisplay" class="hidden">
+                        <div class="flex items-center justify-center space-x-2 p-2 bg-gray-50 rounded">
+                            <svg class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V6.414A2 2 0 0016.414 5L14 2.586A2 2 0 0012.586 2H9z"></path>
+                            </svg>
+                            <span id="selectedFileName" class="text-gray-700"></span>
+                        </div>
+                    </div>
+
+                    <!-- Generate Button (hidden initially) -->
+                    <button type="submit" 
+                            id="generateButton"
+                            class="hidden w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-300">
+                        Generate Questions
+                    </button>
+                </form>
+            </div>
+
+            <!-- Status Section (shown during processing) -->
+            <div id="statusSection" class="hidden mt-6 bg-white rounded-lg shadow-md p-6">
+                <div class="flex flex-col items-center justify-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                    <span id="statusText" class="mt-4 text-gray-700 font-medium">Uploading...</span>
+                </div>
+            </div>
+
+            <!-- Download Section -->
+            <div id="downloadSection" class="hidden mt-6 bg-white rounded-lg shadow-md p-6">
+                <h3 class="text-lg font-semibold mb-4">Download Results</h3>
+                <button id="downloadButton" 
+                        class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-300 flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Download CSV
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFilename = '';
+        const fileInput = document.getElementById('pdfFile');
+        const fileDisplay = document.getElementById('fileDisplay');
+        const selectedFileName = document.getElementById('selectedFileName');
+        const generateButton = document.getElementById('generateButton');
+        const statusSection = document.getElementById('statusSection');
+        const statusText = document.getElementById('statusText');
+        const downloadSection = document.getElementById('downloadSection');
+
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                selectedFileName.textContent = file.name;
+                fileDisplay.classList.remove('hidden');
+                generateButton.classList.remove('hidden');
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            
+            if (fileInput.files.length === 0) {
+                alert('Please select a PDF file');
+                return;
+            }
+
+            formData.append('file', fileInput.files[0]);
+            currentFilename = fileInput.files[0].name;
+
+            try {
+                // Show status
+                statusSection.classList.remove('hidden');
+                statusText.textContent = 'Uploading...';
+
+                // Upload file
+                const uploadResponse = await axios.post('/upload', formData);
+
+                if (uploadResponse.data.success) {
+                    // Update status to analyzing
+                    statusText.textContent = 'Analyzing PDF...';
+
+                    // Start analysis
+                    const analysisResponse = await axios.post('/analyse', 
+                        { filename: currentFilename },
+                        { 
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }
+                    );
+
+                    if (analysisResponse.data.success) {
+                        // Hide status section and show download
+                        statusSection.classList.add('hidden');
+                        downloadSection.classList.remove('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while processing the file');
+                statusSection.classList.add('hidden');
+            }
+        });
+
+        // Handle download
+        document.getElementById('downloadButton').addEventListener('click', async () => {
+            if (currentFilename) {
+                const csvFilename = currentFilename.replace('.pdf', '.csv');
+                window.location.href = `/download/${csvFilename}`;
+            }
+        });
+
+        // Drag and drop functionality
+        const dropZone = document.querySelector('.border-dashed');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            dropZone.classList.add('border-blue-500');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('border-blue-500');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            document.getElementById('pdfFile').files = files;
+            
+            if (files[0]) {
+                selectedFileName.textContent = files[0].name;
+                fileDisplay.classList.remove('hidden');
+                generateButton.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+

@@ -1,3 +1,6 @@
+# Local package
+Interview_Questions_Creator.egg-info/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
