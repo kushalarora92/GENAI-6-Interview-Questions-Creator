@@ -55,10 +55,10 @@ jobs:
       - name: Create deployment package
         run: |
           mkdir -p deployment/package
-          # Install only production dependencies
-          pip install --no-deps -r requirements.txt --target deployment/package
+          # Install all dependencies
+          pip install -r requirements.txt --target deployment/package
           # Install the package itself
-          pip install --no-deps . --target deployment/package
+          pip install . --target deployment/package
           # Copy only necessary files
           cp -r templates deployment/package/
           cp app.py deployment/package/
@@ -70,6 +70,9 @@ jobs:
           find . -type f -name "*.pyc" -delete
           find . -type f -name "*.pyo" -delete
           find . -type f -name "*.pyd" -delete
+          # Remove test directories to reduce size
+          find . -type d -name "tests" -exec rm -rf {} +
+          find . -type d -name "test" -exec rm -rf {} +
           cd ../..
 
       - name: Create deployment zip file
