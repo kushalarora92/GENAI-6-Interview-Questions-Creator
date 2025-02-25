@@ -2,9 +2,16 @@ name: deployment
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+      - 'templates/**'
 
 env:
   ZIP_FILE_NAME: ai6-interview-questions-creator-deployment.zip
+  PYTHON_VERSION: '3.9'
 
 jobs:
   build-and-deploy:
@@ -12,46 +19,71 @@ jobs:
     permissions:
       id-token: write # This is required for requesting the JWT
       contents: read # This is required for actions/checkout
+
     steps:
-      # Checkout project code
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Set up python 3.9
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9' 
-      
-      - name: install dependencies
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Add caching for pip
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
         run: |
           python -m venv venv
           source venv/bin/activate
           pip install -r requirements.txt
-      
-      - name: create deployment package
+
+      # Validate required variables
+      - name: Validate AWS variables
+        run: |
+          if [ -z "${{ vars.AWS_REGION }}" ] || [ -z "${{ vars.AWS_SA_ROLE_ARN }}" ] || [ -z "${{ vars.AWS_S3_BUCKET }}" ] || [ -z "${{ vars.AWS_LAMBDA_FUNCTION }}" ]; then
+            echo "Required AWS variables are not set"
+            exit 1
+          fi
+
+      - name: Create deployment package
         run: |
           mkdir -p deployment/package
           pip install -r requirements.txt --target deployment/package
-          rm deployment/package/Interview-Questions-Creator.egg-link
+          rm -f deployment/package/Interview-Questions-Creator.egg-link
           pip install . --target deployment/package
           cp -r templates deployment/package/
           cp app.py deployment/package/
-          
-      - name: create deployment zip file
+
+      - name: Create deployment zip file
         run: |
-          zip -r ./deployment/${{ env.ZIP_FILE_NAME }} ./deployment/package
-      
-      # configure AWS
+          cd deployment
+          zip -r ${{ env.ZIP_FILE_NAME }} package/
+          cd ..
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-region: ${{ variables.AWS_REGION }}
-          role-to-assume: ${{ variables.AWS_SA_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_SA_ROLE_ARN }}
 
-      # push to s3
       - name: Push zip to S3
-        run: aws s3 cp ./deployment/${{ env.ZIP_FILE_NAME }} s3://${{ variables.AWS_S3_BUCKET }}/${{ env.ZIP_FILE_NAME }} --region ${{ variables.AWS_REGION }}
+        run: |
+          aws s3 cp ./deployment/${{ env.ZIP_FILE_NAME }} \
+            s3://${{ vars.AWS_S3_BUCKET }}/${{ env.ZIP_FILE_NAME }} \
+            --region ${{ vars.AWS_REGION }}
 
-      # deploy to lambda
-      - name: Lambda update function
-        run: aws lambda update-function-code --function-name ${{ variables.AWS_LAMBDA_FUNCTION }} --s3-bucket ${{ variables.AWS_S3_BUCKET }} --s3-key ${{ env.ZIP_FILE_NAME }} --region ${{ variables.AWS_REGION }} > /dev/null
+      - name: Update Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ vars.AWS_LAMBDA_FUNCTION }} \
+            --s3-bucket ${{ vars.AWS_S3_BUCKET }} \
+            --s3-key ${{ env.ZIP_FILE_NAME }} \
+            --region ${{ vars.AWS_REGION }} \
+            --publish || exit 1
