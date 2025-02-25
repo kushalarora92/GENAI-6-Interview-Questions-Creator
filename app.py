@@ -15,6 +15,7 @@ import json
 import csv
 import shutil
 from pathlib import Path
+import awsgi
 
 from src.helper import llm_pipeline
 
@@ -102,3 +103,6 @@ async def download_file(filename: str):
 # Run the app
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+def handler(event, context):
+    return awsgi.response(app, event, context)

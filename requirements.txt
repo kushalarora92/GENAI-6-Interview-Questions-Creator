@@ -13,3 +13,4 @@ PyPDF2==3.0.1
 faiss-cpu==1.10.0
 python-dotenv==1.0.1
 -e . # this will look for setup.py in the current directory # modular approach
+aws-wsgi==0.2.7

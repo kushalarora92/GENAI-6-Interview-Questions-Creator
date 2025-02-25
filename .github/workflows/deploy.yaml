@@ -1,0 +1,57 @@
+name: deployment
+
+on:
+  workflow_dispatch:
+
+env:
+  ZIP_FILE_NAME: ai6-interview-questions-creator-deployment.zip
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for requesting the JWT
+      contents: read # This is required for actions/checkout
+    steps:
+      # Checkout project code
+      - name: checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9' 
+      
+      - name: install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+      
+      - name: create deployment package
+        run: |
+          mkdir -p deployment/package
+          pip install -r requirements.txt --target deployment/package
+          rm deployment/package/Interview-Questions-Creator.egg-link
+          pip install . --target deployment/package
+          cp -r templates deployment/package/
+          cp app.py deployment/package/
+          
+      - name: create deployment zip file
+        run: |
+          zip -r ./deployment/${{ env.ZIP_FILE_NAME }} ./deployment/package
+      
+      # configure AWS
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ variables.AWS_REGION }}
+          role-to-assume: ${{ variables.AWS_SA_ROLE_ARN }}
+
+      # push to s3
+      - name: Push zip to S3
+        run: aws s3 cp ./deployment/${{ env.ZIP_FILE_NAME }} s3://${{ variables.AWS_S3_BUCKET }}/${{ env.ZIP_FILE_NAME }} --region ${{ variables.AWS_REGION }}
+
+      # deploy to lambda
+      - name: Lambda update function
+        run: aws lambda update-function-code --function-name ${{ variables.AWS_LAMBDA_FUNCTION }} --s3-bucket ${{ variables.AWS_S3_BUCKET }} --s3-key ${{ env.ZIP_FILE_NAME }} --region ${{ variables.AWS_REGION }} > /dev/null

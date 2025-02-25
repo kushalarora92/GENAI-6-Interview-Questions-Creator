@@ -54,3 +54,22 @@ uvicorn app:app --reload
 1. Finalize the versions of the packages in the requirements.txt using pip list
 2. Pull & Push to Github
 
+# Preparing for deployment
+1. requirements.txt: import aws-wsgi 
+2. app.py: import awsgi and add handler function
+
+# Deploying the app on AWS Lambda
+
+1. Create a new AWS Lambda function
+2. Create Github workflow and configure  variables
+3. Trigger the workflow manually from the Actions tab in Github
+
+4. Create API Gateway Console and test
+
+5. Create a new ACM Certificate in AWS Certificate Manager
+
+6. Create a Custom Domain Name in API Gateway
+
+7. Update Route 53 configuration with the new domain name
+
+10. Test with the new domain name
