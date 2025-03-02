@@ -64,6 +64,9 @@ jobs:
           python-multipart==0.0.20
           aws-wsgi==0.2.7
           aiofiles==24.1.0
+          langchain==0.3.18
+          langchain-community==0.3.17
+          langchain-core==0.3.35
           EOF
           
           # Install minimal dependencies
