@@ -36,6 +36,13 @@ jobs:
           docker build -t ai6-interview-questions:${{ github.sha }} .
           docker save ai6-interview-questions:${{ github.sha }} > image.tar
 
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+          echo "Generated SSH key:"
+          cat ~/.ssh/id_rsa.pub
+
       - name: Copy Docker image to EC2
         run: |
           # Copy the image and deploy script
