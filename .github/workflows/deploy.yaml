@@ -55,13 +55,27 @@ jobs:
       - name: Create deployment package
         run: |
           mkdir -p deployment/package
-          # Install all dependencies
-          pip install -r requirements.txt --target deployment/package
+          
+          # Create a minimal requirements file for Lambda
+          cat > deployment/lambda-requirements.txt << EOF
+          fastapi==0.115.8
+          uvicorn==0.34.0
+          jinja2==3.1.5
+          python-multipart==0.0.20
+          aws-wsgi==0.2.7
+          aiofiles==24.1.0
+          EOF
+          
+          # Install minimal dependencies
+          pip install -r deployment/lambda-requirements.txt --target deployment/package
+          
           # Install the package itself
           pip install . --target deployment/package
+          
           # Copy only necessary files
           cp -r templates deployment/package/
           cp app.py deployment/package/
+          
           # Remove unnecessary files to reduce size
           cd deployment/package
           find . -type d -name "__pycache__" -exec rm -rf {} +
@@ -70,16 +84,25 @@ jobs:
           find . -type f -name "*.pyc" -delete
           find . -type f -name "*.pyo" -delete
           find . -type f -name "*.pyd" -delete
-          # Remove test directories to reduce size
           find . -type d -name "tests" -exec rm -rf {} +
           find . -type d -name "test" -exec rm -rf {} +
+          
+          # Print size of each directory for debugging
+          echo "Package sizes:"
+          du -h -d 1 .
+          total_size=$(du -s . | cut -f1)
+          echo "Total size in KB: $total_size"
           cd ../..
 
       - name: Create deployment zip file
         run: |
           cd deployment/package
           zip -r ../${{ env.ZIP_FILE_NAME }} .
-          cd ../..
+          cd ..
+          # Print zip file size
+          echo "Zip file size:"
+          ls -lh ${{ env.ZIP_FILE_NAME }}
+          cd ..
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4

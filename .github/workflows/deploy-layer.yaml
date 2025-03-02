@@ -1,0 +1,107 @@
+name: deploy-lambda-layer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'requirements.txt'
+
+env:
+  LAYER_ZIP_FILE: ai6-interview-questions-layer.zip
+  PYTHON_VERSION: '3.9'
+  LAYER_NAME: ai6-interview-questions-layer
+
+jobs:
+  deploy-layer:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Create layer package
+        run: |
+          # Create directory structure required for Lambda layers
+          mkdir -p layer/python
+          
+          # Create requirements file for layer
+          cat > layer/requirements.txt << EOF
+          langchain==0.3.18
+          langchain-community==0.3.17
+          langchain-core==0.3.35
+          openai==0.28.0
+          tiktoken==0.9.0
+          pypdf==5.3.0
+          PyPDF2==3.0.1
+          faiss-cpu==1.10.0
+          python-dotenv==1.0.1
+          EOF
+          
+          # Install dependencies into the python directory
+          pip install -r layer/requirements.txt --target layer/python
+          
+          # Remove unnecessary files to reduce size
+          cd layer/python
+          find . -type d -name "__pycache__" -exec rm -rf {} +
+          find . -type d -name "*.dist-info" -exec rm -rf {} +
+          find . -type d -name "tests" -exec rm -rf {} +
+          find . -type d -name "test" -exec rm -rf {} +
+          find . -type f -name "*.pyc" -delete
+          find . -type f -name "*.pyo" -delete
+          find . -type f -name "*.pyd" -delete
+          
+          # Print size information
+          echo "Layer package sizes:"
+          du -h -d 1 .
+          total_size=$(du -s . | cut -f1)
+          echo "Total size in KB: $total_size"
+          cd ../..
+
+      - name: Create layer zip
+        run: |
+          cd layer
+          zip -r ../${{ env.LAYER_ZIP_FILE }} python/
+          cd ..
+          echo "Layer zip size:"
+          ls -lh ${{ env.LAYER_ZIP_FILE }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_SA_ROLE_ARN }}
+
+      - name: Push layer to S3
+        run: |
+          aws s3 cp ${{ env.LAYER_ZIP_FILE }} \
+            s3://${{ vars.AWS_S3_BUCKET }}/${{ env.LAYER_ZIP_FILE }} \
+            --region ${{ vars.AWS_REGION }}
+
+      - name: Create/Update Lambda Layer
+        run: |
+          # Create new layer version
+          LAYER_VERSION=$(aws lambda publish-layer-version \
+            --layer-name ${{ env.LAYER_NAME }} \
+            --description "Dependencies for AI Interview Questions Creator" \
+            --content S3Bucket=${{ vars.AWS_S3_BUCKET }},S3Key=${{ env.LAYER_ZIP_FILE }} \
+            --compatible-runtimes python3.9 \
+            --region ${{ vars.AWS_REGION }} \
+            --query 'Version' \
+            --output text)
+          
+          echo "Created layer version: $LAYER_VERSION"
+          
+          # Update Lambda function to use new layer version
+          aws lambda update-function-configuration \
+            --function-name ${{ vars.AWS_LAMBDA_FUNCTION }} \
+            --layers "arn:aws:lambda:${{ vars.AWS_REGION }}:${{ vars.AWS_ACCOUNT_ID }}:layer:${{ env.LAYER_NAME }}:$LAYER_VERSION" \
+            --region ${{ vars.AWS_REGION }}
