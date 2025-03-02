@@ -2,10 +2,6 @@ name: deploy-utils-layer
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - 'requirements.txt'
 
 env:
   LAYER_ZIP_FILE: ai6-interview-utils-layer.zip

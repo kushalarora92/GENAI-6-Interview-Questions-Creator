@@ -2,13 +2,6 @@ name: Deploy to ECS
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - '**.py'
-      - 'requirements.txt'
-      - 'templates/**'
-      - 'Dockerfile'
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}

@@ -2,12 +2,6 @@ name: deployment
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - '**.py'
-      - 'requirements.txt'
-      - 'templates/**'
 
 env:
   ZIP_FILE_NAME: ai6-interview-questions-creator-deployment.zip
