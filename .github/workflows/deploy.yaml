@@ -69,11 +69,14 @@ jobs:
           langchain-core==0.3.35
           EOF
           
-          # Install minimal dependencies
-          pip install -r deployment/lambda-requirements.txt --target deployment/package
+          # Clear pip cache first
+          pip cache purge
           
-          # Install the package itself
-          pip install . --target deployment/package
+          # Install minimal dependencies with --no-cache-dir
+          pip install --no-cache-dir -r deployment/lambda-requirements.txt --target deployment/package
+          
+          # Install the package itself with --no-cache-dir
+          pip install --no-cache-dir . --target deployment/package
           
           # Copy only necessary files
           cp -r templates deployment/package/
@@ -89,6 +92,26 @@ jobs:
           find . -type f -name "*.pyd" -delete
           find . -type d -name "tests" -exec rm -rf {} +
           find . -type d -name "test" -exec rm -rf {} +
+          
+          # Remove more unnecessary files
+          find . -type f -name "*.c" -delete
+          find . -type f -name "*.h" -delete
+          find . -type f -name "*.hpp" -delete
+          find . -type f -name "*.txt" -delete
+          find . -type f -name "*.md" -delete
+          find . -type f -name "README*" -delete
+          find . -type f -name "LICENSE*" -delete
+          find . -type f -name "CHANGELOG*" -delete
+          
+          # Remove specific large directories
+          rm -rf numpy/tests
+          rm -rf numpy/doc
+          rm -rf langchain/tests
+          rm -rf langchain_community/tests
+          rm -rf sqlalchemy/testing
+          rm -rf sqlalchemy/test
+          rm -rf yaml/tests
+          rm -rf yaml/examples
           
           # Print size of each directory for debugging
           echo "Package sizes:"
