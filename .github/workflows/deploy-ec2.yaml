@@ -1,0 +1,57 @@
+name: Deploy to EC2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+      - 'templates/**'
+      - 'Dockerfile'
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_SA_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build and save Docker image
+        run: |
+          docker build -t ai6-interview-questions:${{ github.sha }} .
+          docker save ai6-interview-questions:${{ github.sha }} > image.tar
+
+      - name: Copy Docker image to EC2
+        run: |
+          # Copy the image and deploy script
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --availability-zone ${{ vars.EC2_AVAILABILITY_ZONE }} \
+            --instance-os-user ec2-user \
+            --ssh-public-key "$(cat ~/.ssh/id_rsa.pub)"
+          
+          scp -o StrictHostKeyChecking=no image.tar ec2-user@${{ vars.EC2_HOST }}:~/
+          scp -o StrictHostKeyChecking=no deploy.sh ec2-user@${{ vars.EC2_HOST }}:~/
+
+      - name: Deploy on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ vars.EC2_HOST }} '
+            # Load and run the new image
+            docker load < image.tar
+            bash deploy.sh ${{ github.sha }}
+          ' 
