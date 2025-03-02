@@ -30,8 +30,10 @@ jobs:
 
       - name: Create layer package
         run: |
+          # Create directory structure required for Lambda layers
           mkdir -p layer/python
           
+          # Create requirements file for layer
           cat > layer/requirements.txt << EOF
           langchain==0.3.18
           langchain-community==0.3.17
@@ -41,16 +43,39 @@ jobs:
           python-dotenv==1.0.1
           EOF
           
+          # Install dependencies into the python directory
           pip install -r layer/requirements.txt --target layer/python
           
+          # Remove unnecessary files to reduce size
           cd layer/python
           find . -type d -name "__pycache__" -exec rm -rf {} +
           find . -type d -name "*.dist-info" -exec rm -rf {} +
           find . -type d -name "tests" -exec rm -rf {} +
+          find . -type d -name "test" -exec rm -rf {} +
           find . -type f -name "*.pyc" -delete
           find . -type f -name "*.pyo" -delete
           find . -type f -name "*.pyd" -delete
           
+          # Remove specific large directories we don't need
+          rm -rf numpy/tests
+          rm -rf numpy/doc
+          rm -rf langchain/tests
+          rm -rf langchain_community/tests
+          rm -rf sqlalchemy/testing
+          rm -rf sqlalchemy/test
+          rm -rf yaml/tests
+          rm -rf yaml/examples
+          # Remove more unnecessary files
+          find . -type f -name "*.c" -delete
+          find . -type f -name "*.h" -delete
+          find . -type f -name "*.hpp" -delete
+          find . -type f -name "*.txt" -delete
+          find . -type f -name "*.md" -delete
+          find . -type f -name "README*" -delete
+          find . -type f -name "LICENSE*" -delete
+          find . -type f -name "CHANGELOG*" -delete
+          
+          # Print size information
           echo "Layer package sizes:"
           du -h -d 1 .
           total_size=$(du -s . | cut -f1)
@@ -71,12 +96,15 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_SA_ROLE_ARN }}
 
-      - name: Push layer to S3 and create layer
+      - name: Push layer to S3
         run: |
           aws s3 cp ${{ env.LAYER_ZIP_FILE }} \
             s3://${{ vars.AWS_S3_BUCKET }}/${{ env.LAYER_ZIP_FILE }} \
             --region ${{ vars.AWS_REGION }}
 
+      - name: Create/Update Lambda Layer
+        run: |
+          # Create new layer version
           LAYER_VERSION=$(aws lambda publish-layer-version \
             --layer-name ${{ env.LAYER_NAME }} \
             --description "Utility Dependencies for AI Interview Questions Creator" \
@@ -86,10 +114,15 @@ jobs:
             --query 'Version' \
             --output text)
           
-          echo "Created utils layer version: $LAYER_VERSION"
+          echo "Created layer version: $LAYER_VERSION"
           
           # Get AWS Account ID
           AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
           
-          # Store layer ARN for main workflow
-          echo "UTILS_LAYER_ARN=arn:aws:lambda:${{ vars.AWS_REGION }}:${AWS_ACCOUNT_ID}:layer:${{ env.LAYER_NAME }}:$LAYER_VERSION" >> $GITHUB_ENV 
+          echo "Using AWS Account ID: $AWS_ACCOUNT_ID"
+          
+          # Update Lambda function to use new layer version
+          aws lambda update-function-configuration \
+            --function-name ${{ vars.AWS_LAMBDA_FUNCTION }} \
+            --layers "arn:aws:lambda:${{ vars.AWS_REGION }}:${AWS_ACCOUNT_ID}:layer:${{ env.LAYER_NAME }}:$LAYER_VERSION" \
+            --region ${{ vars.AWS_REGION }} 
