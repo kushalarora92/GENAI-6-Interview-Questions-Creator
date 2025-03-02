@@ -11,6 +11,7 @@ env:
   LAYER_ZIP_FILE: ai6-interview-utils-layer.zip
   PYTHON_VERSION: '3.9'
   LAYER_NAME: ai6-interview-utils-layer
+  ML_LAYER_NAME: ai6-interview-questions-layer
 
 jobs:
   deploy-utils-layer:
@@ -121,8 +122,14 @@ jobs:
           
           echo "Using AWS Account ID: $AWS_ACCOUNT_ID"
           
-          # Update Lambda function to use new layer version
+          # Get the ML layer ARN
+          ML_LAYER_ARN="arn:aws:lambda:${{ vars.AWS_REGION }}:${AWS_ACCOUNT_ID}:layer:${{ env.ML_LAYER_NAME }}:$(aws lambda list-layer-versions --layer-name ${ML_LAYER_NAME} --query 'LayerVersions[0].Version' --output text)"
+          
+          # Create utils layer ARN
+          UTILS_LAYER_ARN="arn:aws:lambda:${{ vars.AWS_REGION }}:${AWS_ACCOUNT_ID}:layer:${{ env.LAYER_NAME }}:$LAYER_VERSION"
+          
+          # Update Lambda function to use both layers
           aws lambda update-function-configuration \
             --function-name ${{ vars.AWS_LAMBDA_FUNCTION }} \
-            --layers "arn:aws:lambda:${{ vars.AWS_REGION }}:${AWS_ACCOUNT_ID}:layer:${{ env.LAYER_NAME }}:$LAYER_VERSION" \
+            --layers "$ML_LAYER_ARN" "$UTILS_LAYER_ARN" \
             --region ${{ vars.AWS_REGION }} 
