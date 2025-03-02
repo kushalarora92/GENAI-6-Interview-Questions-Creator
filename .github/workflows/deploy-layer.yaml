@@ -117,8 +117,13 @@ jobs:
           
           echo "Created layer version: $LAYER_VERSION"
           
+          # Get AWS Account ID
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+          
+          echo "Using AWS Account ID: $AWS_ACCOUNT_ID"
+          
           # Update Lambda function to use new layer version
           aws lambda update-function-configuration \
             --function-name ${{ vars.AWS_LAMBDA_FUNCTION }} \
-            --layers "arn:aws:lambda:${{ vars.AWS_REGION }}:${{ vars.AWS_ACCOUNT_ID }}:layer:${{ env.LAYER_NAME }}:$LAYER_VERSION" \
+            --layers "arn:aws:lambda:${{ vars.AWS_REGION }}:${AWS_ACCOUNT_ID}:layer:${{ env.LAYER_NAME }}:$LAYER_VERSION" \
             --region ${{ vars.AWS_REGION }}
