@@ -31,48 +31,70 @@ jobs:
           role-to-assume: ${{ vars.AWS_SA_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Check EC2 Status
+        run: |
+          echo "Checking EC2 instance status..."
+          aws ec2 describe-instance-status \
+            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --query 'InstanceStatuses[0].InstanceStatus.Status' \
+            --output text
+
       - name: Build and save Docker image
         run: |
           docker build -t ai6-interview-questions:${{ github.sha }} .
           docker save ai6-interview-questions:${{ github.sha }} > image.tar
+          echo "Docker image size: $(ls -lh image.tar)"
 
-      - name: Setup SSH and Connect to EC2
+      - name: Copy files to S3
         run: |
-          # Generate SSH key
-          mkdir -p ~/.ssh
-          ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
+          echo "Uploading files to S3..."
+          aws s3 cp image.tar s3://${{ vars.AWS_S3_BUCKET }}/deploy/image.tar
+          aws s3 cp deploy.sh s3://${{ vars.AWS_S3_BUCKET }}/deploy/deploy.sh
           
-          # Send key to EC2 instance
-          aws ec2-instance-connect send-ssh-public-key \
+          # Verify files exist in S3
+          aws s3 ls s3://${{ vars.AWS_S3_BUCKET }}/deploy/
+
+      - name: Deploy using SSM
+        id: ssm-deploy
+        run: |
+          echo "Starting deployment via SSM..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters "commands=[
+              'cd /home/ec2-user',
+              'aws s3 cp s3://${{ vars.AWS_S3_BUCKET }}/deploy/image.tar .',
+              'aws s3 cp s3://${{ vars.AWS_S3_BUCKET }}/deploy/deploy.sh .',
+              'chmod +x deploy.sh',
+              'docker load < image.tar',
+              './deploy.sh ${{ github.sha }}'
+            ]" \
+            --output text \
+            --query "Command.CommandId")
+          
+          echo "Waiting for command completion..."
+          aws ssm wait command-executed \
+            --command-id "$COMMAND_ID" \
+            --instance-id ${{ env.EC2_INSTANCE_ID }}
+          
+          # Get command output
+          aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
             --instance-id ${{ env.EC2_INSTANCE_ID }} \
-            --availability-zone ${{ vars.EC2_AVAILABILITY_ZONE }} \
-            --instance-os-user ec2-user \
-            --ssh-public-key "$(cat ~/.ssh/id_rsa.pub)"
-          
-          # Wait for key to be available
-          echo "Waiting for SSH key to propagate..."
-          sleep 10
-          
-          # Test SSH connection
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ec2-user@${{ vars.EC2_HOST }} 'echo "SSH connection successful"' || {
-            echo "SSH connection failed. Checking instance status..."
-            aws ec2 describe-instance-status --instance-id ${{ env.EC2_INSTANCE_ID }}
-            exit 1
-          }
+            --output text \
+            --query "StandardOutputContent"
 
-      - name: Copy Docker image to EC2
+      - name: Verify Deployment
         run: |
-          # Copy files with retries
-          for i in {1..3}; do
-            echo "Attempt $i to copy files..."
-            scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 image.tar deploy.sh ec2-user@${{ vars.EC2_HOST }}:~/ && break
-            sleep 5
-          done
+          echo "Checking if container is running..."
+          aws ssm send-command \
+            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["docker ps | grep ai6-interview"]'
 
-      - name: Deploy on EC2
+      - name: Cleanup S3
+        if: always()
         run: |
-          ssh -o StrictHostKeyChecking=no ec2-user@${{ vars.EC2_HOST }} '
-            # Load and run the new image
-            docker load < image.tar
-            bash deploy.sh ${{ github.sha }}
-          ' 
+          echo "Cleaning up S3 files..."
+          aws s3 rm s3://${{ vars.AWS_S3_BUCKET }}/deploy/image.tar
+          aws s3 rm s3://${{ vars.AWS_S3_BUCKET }}/deploy/deploy.sh 
