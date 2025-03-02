@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
 # Copy the entire application first
 COPY . .
 
+# Create required directories
+RUN mkdir -p static templates
+
 # Install dependencies including the local package
 RUN pip install --no-cache-dir -r requirements.txt
 
