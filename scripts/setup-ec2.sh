@@ -23,10 +23,10 @@ sudo systemctl start docker
 sudo systemctl enable docker
 sudo usermod -aG docker ec2-user
 
-# Create required directories
+# Create required directories with proper permissions
 echo "Creating application directories..."
-mkdir -p ~/deploy ~/static
-chmod 755 ~/deploy ~/static
+mkdir -p ~/static/docs
+chmod -R 777 ~/static  # Allow write access to static directory
 
 # Set environment variables
 echo "Setting up environment variables..."
