@@ -14,14 +14,16 @@ RUN apt-get update && apt-get install -y \
 # Copy the entire application first
 COPY . .
 
-# Create required directories
-RUN mkdir -p static templates
+# Create required directories with proper permissions
+RUN mkdir -p /app/static/docs /app/templates && \
+    chown -R 1000:1000 /app/static /app/templates
 
 # Install dependencies including the local package
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Create a non-root user
-RUN useradd -m appuser && chown -R appuser /app
+# Create a non-root user with UID 1000
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
 USER appuser
 
 # Expose port

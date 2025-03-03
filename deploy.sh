@@ -11,7 +11,8 @@ docker load < image.tar
 
 # Ensure static directory exists with proper permissions
 mkdir -p ~/static/docs
-chmod -R 777 ~/static
+sudo chown -R 1000:1000 ~/static  # Match container's user ID
+chmod -R 755 ~/static  # More secure permissions
 
 # Run the new container
 docker run -d \
