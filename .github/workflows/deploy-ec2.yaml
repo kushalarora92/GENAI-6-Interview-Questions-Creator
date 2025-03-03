@@ -44,6 +44,7 @@ jobs:
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
+          # Use the raw key directly (no base64 decoding)
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ steps.get-ip.outputs.ip }} >> ~/.ssh/known_hosts
@@ -55,11 +56,9 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          # Copy files
-          scp image.tar deploy.sh ec2-user@${{ steps.get-ip.outputs.ip }}:~/
-
-          # Execute deployment
-          ssh ec2-user@${{ steps.get-ip.outputs.ip }} "bash deploy.sh ${{ github.sha }}"
+          # Add verbose flag for debugging
+          scp -v -i ~/.ssh/id_rsa image.tar deploy.sh ec2-user@${{ steps.get-ip.outputs.ip }}:~/
+          ssh -v -i ~/.ssh/id_rsa ec2-user@${{ steps.get-ip.outputs.ip }} "bash deploy.sh ${{ github.sha }}"
 
       - name: Cleanup
         if: always()
