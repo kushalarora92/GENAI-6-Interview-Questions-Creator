@@ -3,8 +3,9 @@ set -e  # Exit immediately if a command exits with a non-zero status
 
 IMAGE_NAME=$1
 IMAGE_TAG=$2
+APP_PORT=$3
 
-echo "Deploying ${IMAGE_NAME}:${IMAGE_TAG}"
+echo "Deploying ${IMAGE_NAME}:${IMAGE_TAG} on port ${APP_PORT}"
 
 # Stop and remove the container if it exists
 echo "Stopping and removing existing container with name ${IMAGE_NAME}..."
@@ -26,7 +27,7 @@ echo "Starting new container..."
 docker run -d \
   --name ${IMAGE_NAME} \
   --restart unless-stopped \
-  -p 8000:8000 \
+  -p ${APP_PORT}:${APP_PORT} \
   -e OPENAI_API_KEY=$OPENAI_API_KEY \
   -v ~/static:/app/static \
   ${IMAGE_NAME}:${IMAGE_TAG}
