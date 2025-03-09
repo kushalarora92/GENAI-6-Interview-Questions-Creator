@@ -54,8 +54,8 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ai6-interview-questions:${{ github.sha }} .
-          docker save ai6-interview-questions:${{ github.sha }} > image.tar
+          docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker save ${{ env.IMAGE_NAME }}:${{ github.sha }} > image.tar
 
       - name: Deploy to EC2
         run: |
