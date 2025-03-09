@@ -58,6 +58,9 @@ uvicorn app:app --reload
 1. requirements.txt: import aws-wsgi 
 2. app.py: import awsgi and add handler function
 
+# SSH into EC2
+
+
 # Deploying the app on EC2
 
 1. Create Github workflow and configure  variables
@@ -140,3 +143,11 @@ uvicorn app:app --reload
 6. Create a new ACM Certificate in AWS Certificate Manager
 
 7. Update the Route 53 configuration and ALB settings with the new domain name
+
+# Docker cleanup when needed
+```
+# Remove unused docker images, containers, and volumes
+docker system prune -af
+# Show disk space after cleanup
+df -h
+```
