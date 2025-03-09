@@ -1,10 +1,11 @@
 #!/bin/bash
 
-IMAGE_TAG=$1
+IMAGE_NAME=$1
+IMAGE_TAG=$2
 
 # Stop and remove the existing container if it exists
-docker stop ai6-interview || true
-docker rm ai6-interview || true
+docker stop ${IMAGE_NAME} || true
+docker rm ${IMAGE_NAME} || true
 
 # Load the Docker image from the tar file
 docker load < image.tar
@@ -16,12 +17,12 @@ chmod -R 755 ~/static  # More secure permissions
 
 # Run the new container
 docker run -d \
-  --name ai6-interview \
+  --name ${IMAGE_NAME} \
   --restart unless-stopped \
   -p 8000:8000 \
   -e OPENAI_API_KEY=$OPENAI_API_KEY \
   -v ~/static:/app/static \
-  ai6-interview-questions:$IMAGE_TAG
+  ${IMAGE_NAME}:${IMAGE_TAG}
 
 # Clean up
 rm image.tar 

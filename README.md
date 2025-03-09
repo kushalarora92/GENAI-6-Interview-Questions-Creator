@@ -58,18 +58,85 @@ uvicorn app:app --reload
 1. requirements.txt: import aws-wsgi 
 2. app.py: import awsgi and add handler function
 
-# Deploying the app on AWS Lambda
+# Deploying the app on EC2
 
-1. Create a new AWS Lambda function
-2. Create Github workflow and configure  variables
-3. Trigger the workflow manually from the Actions tab in Github
+1. Create Github workflow and configure  variables
+2. Trigger the workflow manually from the Actions tab in Github
 
-4. Create API Gateway Console and test
+3. First, create Target Group:
+    EC2 Console → Target Groups → Create target group
+    - Choose target type: Instances
+    - Target group name: interview-app-tg
+    - Protocol: HTTP
+    - Port: 8000
+    - VPC: Select your EC2's VPC (default VPC)
+    - Health check settings:
+        - Protocol: HTTP
+        - Path: /
+        - Port: traffic port (8000)
+        - Healthy threshold: 2
+        - Unhealthy threshold: 2
+        - Timeout: 5
+        - Interval: 30
+        - Success codes: 200
+    Click 'Next'
+    - Select your EC2 instance
+    - Click 'Include as pending below'
+    - Click 'Create target group'
 
-5. Create a new ACM Certificate in AWS Certificate Manager
+4. Create Application Load Balancer:
+    EC2 Console → Load Balancers → Create load balancer
+    - Select Application Load Balancer
 
-6. Create a Custom Domain Name in API Gateway
+    Basic configuration:
+    - Load balancer name: interview-app-alb
+    - Scheme: Internet-facing
+    - IP address type: IPv4
 
-7. Update Route 53 configuration with the new domain name
+    Network mapping:
+    - VPC: Same as your EC2 (default VPC)
+    - Select at least two Availability Zones
 
-10. Test with the new domain name
+    Security groups:
+    - Create new security group
+    - Name: alb-sg
+    - Description: ALB security group
+    - Inbound rules:
+        - Allow HTTP (80) from anywhere
+        - Allow HTTPS (443) from anywhere
+
+    Listeners and routing:
+    - HTTPS:443
+    - Protocol: HTTPS
+    - Select your ACM certificate
+    - Default action: Forward to interview-app-tg
+    - HTTP:80
+    - Protocol: HTTP
+    - Default action: Redirect to HTTPS:443
+
+    Click 'Create load balancer'
+
+5. Update EC2 Security Group:
+    EC2 Console → Security Groups → Your EC2's security group
+    Add inbound rule:
+    - Type: Custom TCP
+    - Port: 8000
+    - Source: Select the ALB security group (alb-sg)
+    - Description: Allow ALB traffic
+
+6. Verify Setup:
+    - Check Target Group health
+    EC2 Console → Target Groups → interview-app-tg
+    Look at 'Targets' tab - EC2 should show as 'healthy'
+
+    - Get ALB DNS name
+    EC2 Console → Load Balancers → interview-app-alb
+    Copy the 'DNS name'
+
+    - Test in browser:
+    http://[ALB-DNS-NAME]
+    https://[ALB-DNS-NAME]
+
+6. Create a new ACM Certificate in AWS Certificate Manager
+
+7. Update the Route 53 configuration and ALB settings with the new domain name

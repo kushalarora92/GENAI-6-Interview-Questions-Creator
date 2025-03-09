@@ -13,6 +13,8 @@ on:
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+  APP_DIR: ai6-interview-questions
+  IMAGE_NAME: ai6-interview-questions
 
 jobs:
   deploy:
@@ -57,11 +59,12 @@ jobs:
       - name: Deploy to EC2
         run: |
           # Add verbose flag for debugging
-          scp -v -i ~/.ssh/id_rsa image.tar deploy.sh ec2-user@${{ steps.get-ip.outputs.ip }}:~/
-          ssh -v -i ~/.ssh/id_rsa ec2-user@${{ steps.get-ip.outputs.ip }} "bash deploy.sh ${{ github.sha }}"
+          ssh -i ~/.ssh/id_rsa ec2-user@${{ steps.get-ip.outputs.ip }} 'mkdir -p ~/${{ env.APP_DIR }}'
+          scp -v -i ~/.ssh/id_rsa image.tar deploy.sh ec2-user@${{ steps.get-ip.outputs.ip }}:~/${{ env.APP_DIR }}/
+          ssh -v -i ~/.ssh/id_rsa ec2-user@${{ steps.get-ip.outputs.ip }} "cd ~/${{ env.APP_DIR }} && bash deploy.sh ${{ env.IMAGE_NAME }} ${{ github.sha }}"
 
       - name: Cleanup
         if: always()
         run: |
           rm -f image.tar
-          rm -f ~/.ssh/id_rsa 
+          rm -f ~/.ssh/id_rsa
